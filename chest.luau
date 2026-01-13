@@ -1,40 +1,10 @@
+-- ================= SERVICES =================
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
-local PlaceId = game.PlaceId
 
-local StopFarm = false
-local UncheckedChests, FirstRun = {}, true
-
--- ================= CHECK ITEM =================
-local function HasSpecialItem()
-    local function check(container)
-        for _, v in pairs(container:GetChildren()) do
-            if v.Name == "Holy Grail" or v.Name == "Blackbeard Key" then
-                return true
-            end
-        end
-        return false
-    end
-
-    return check(LocalPlayer.Backpack) or
-           (LocalPlayer.Character and check(LocalPlayer.Character))
-end
-
--- ================= SERVER HOP =================
-local function ServerHop()
-    local servers = HttpService:JSONDecode(
-        game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-    )
-
-    for _, server in pairs(servers.data) do
-        if server.playing < server.maxPlayers then
-            TeleportService:TeleportToPlaceInstance(PlaceId, server.id, LocalPlayer)
-            break
-        end
-    end
-end
+-- ================= BIẾN ĐIỀU KHIỂN =================
+local Farming = false
+local FarmThread
 
 -- ================= CHARACTER =================
 local function getCharacter()
@@ -45,11 +15,13 @@ local function getCharacter()
 end
 
 -- ================= SORT CHEST =================
-local function DistanceFromPlrSort(ObjectList)
-    local RootPart = getCharacter().HumanoidRootPart
-    table.sort(ObjectList, function(A, B)
-        return (RootPart.Position - A.Position).Magnitude <
-               (RootPart.Position - B.Position).Magnitude
+local UncheckedChests, FirstRun = {}, true
+
+local function DistanceFromPlrSort(list)
+    local hrp = getCharacter().HumanoidRootPart
+    table.sort(list, function(a, b)
+        return (hrp.Position - a.Position).Magnitude <
+               (hrp.Position - b.Position).Magnitude
     end)
 end
 
@@ -74,45 +46,75 @@ local function getChestsSorted()
     return Chests
 end
 
--- ================= TELEPORT =================
+-- ================= NOCLIP + TP =================
+local function toggleNoclip(on)
+    for _, v in pairs(getCharacter():GetChildren()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = not on
+        end
+    end
+end
+
 local function Teleport(cf)
     local hrp = getCharacter().HumanoidRootPart
+    toggleNoclip(true)
     hrp.CFrame = cf + Vector3.new(0, 3, 0)
+    toggleNoclip(false)
 end
 
 -- ================= FARM =================
-local function startFarm()
-    task.spawn(function()
-        while task.wait(0.2) do
-            if StopFarm then return end
+local function StartFarm()
+    if Farming then return end
+    Farming = true
 
-            -- CHECK ITEM QUAN TRỌNG
-            if HasSpecialItem() then
-                StopFarm = true
-                warn("ĐÃ CÓ CHÉN THÁNH / KEY RÂU ĐEN → DỪNG FARM")
-                return
-            end
+    FarmThread = task.spawn(function()
+        while Farming do
+            task.wait(0.2)
 
             local Chests = getChestsSorted()
-
             if #Chests > 0 then
                 Teleport(Chests[1].CFrame)
-            else
-                warn("HẾT RƯƠNG → ĐỔI SERVER")
-                task.wait(1)
-                ServerHop()
-                return
             end
         end
     end)
 end
 
--- ================= AUTO START =================
+local function StopFarm()
+    Farming = false
+end
+
+-- ================= GUI =================
+local gui = Instance.new("ScreenGui", game.CoreGui)
+gui.Name = "ChestFarmGUI"
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 200, 0, 120)
+frame.Position = UDim2.new(0, 20, 0.4, 0)
+frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+frame.Active = true
+frame.Draggable = true
+
+local startBtn = Instance.new("TextButton", frame)
+startBtn.Size = UDim2.new(1, -20, 0, 40)
+startBtn.Position = UDim2.new(0, 10, 0, 10)
+startBtn.Text = "▶ START FARM"
+startBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+startBtn.TextColor3 = Color3.new(1,1,1)
+
+local stopBtn = Instance.new("TextButton", frame)
+stopBtn.Size = UDim2.new(1, -20, 0, 40)
+stopBtn.Position = UDim2.new(0, 10, 0, 60)
+stopBtn.Text = "⛔ STOP FARM"
+stopBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+stopBtn.TextColor3 = Color3.new(1,1,1)
+
+startBtn.MouseButton1Click:Connect(StartFarm)
+stopBtn.MouseButton1Click:Connect(StopFarm)
+
+-- ================= RESPAWN SAFE =================
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
-    if not StopFarm then
-        startFarm()
+    if Farming then
+        StartFarm()
     end
 end)
-
-startFarm()
