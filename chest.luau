@@ -65,17 +65,23 @@ end
 
 -- ================= SERVER HOP =================
 local function ServerHop()
-    if not Farming then return end
-
     local servers = HttpService:JSONDecode(
         game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
     )
 
+    local available = {}
     for _, s in pairs(servers.data) do
         if s.playing < s.maxPlayers then
-            TeleportService:TeleportToPlaceInstance(PlaceId, s.id, LocalPlayer)
-            break
+            table.insert(available, s.id)
         end
+    end
+
+    if #available > 0 then
+        TeleportService:TeleportToPlaceInstance(
+            PlaceId,
+            available[math.random(1, #available)],
+            LocalPlayer
+        )
     end
 end
 
@@ -92,7 +98,7 @@ local function StartFarm()
             if #Chests > 0 then
                 Teleport(Chests[1].CFrame)
             else
-                warn("HẾT RƯƠNG → ĐỔI SERVER")
+                warn("HẾT RƯƠNG → AUTO HOP SERVER")
                 task.wait(1)
                 ServerHop()
                 return
@@ -110,28 +116,32 @@ local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.Name = "ChestFarmGUI"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 200, 0, 120)
-frame.Position = UDim2.new(0, 20, 0.4, 0)
+frame.Size = UDim2.new(0, 200, 0, 170)
+frame.Position = UDim2.new(0, 20, 0.35, 0)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.Active = true
 frame.Draggable = true
 
-local startBtn = Instance.new("TextButton", frame)
-startBtn.Size = UDim2.new(1, -20, 0, 40)
-startBtn.Position = UDim2.new(0, 10, 0, 10)
-startBtn.Text = "▶ START FARM"
-startBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
-startBtn.TextColor3 = Color3.new(1,1,1)
+local function makeBtn(text, y, color)
+    local b = Instance.new("TextButton", frame)
+    b.Size = UDim2.new(1, -20, 0, 40)
+    b.Position = UDim2.new(0, 10, 0, y)
+    b.Text = text
+    b.BackgroundColor3 = color
+    b.TextColor3 = Color3.new(1,1,1)
+    return b
+end
 
-local stopBtn = Instance.new("TextButton", frame)
-stopBtn.Size = UDim2.new(1, -20, 0, 40)
-stopBtn.Position = UDim2.new(0, 10, 0, 60)
-stopBtn.Text = "⛔ STOP FARM"
-stopBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-stopBtn.TextColor3 = Color3.new(1,1,1)
+local startBtn = makeBtn("▶ START FARM", 10, Color3.fromRGB(0,170,0))
+local stopBtn  = makeBtn("⛔ STOP FARM", 60, Color3.fromRGB(170,0,0))
+local hopBtn   = makeBtn("🔁 HOP SERVER", 110, Color3.fromRGB(0,120,170))
 
 startBtn.MouseButton1Click:Connect(StartFarm)
 stopBtn.MouseButton1Click:Connect(StopFarm)
+hopBtn.MouseButton1Click:Connect(function()
+    warn("HOP SERVER THỦ CÔNG")
+    ServerHop()
+end)
 
 -- ================= RESPAWN SAFE =================
 LocalPlayer.CharacterAdded:Connect(function()
