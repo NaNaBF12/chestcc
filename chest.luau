@@ -1,10 +1,13 @@
 -- ================= SERVICES =================
 local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
+local PlaceId = game.PlaceId
 
--- ================= BIẾN ĐIỀU KHIỂN =================
+-- ================= BIẾN =================
 local Farming = false
-local FarmThread
+local UncheckedChests, FirstRun = {}, true
 
 -- ================= CHARACTER =================
 local function getCharacter()
@@ -15,8 +18,6 @@ local function getCharacter()
 end
 
 -- ================= SORT CHEST =================
-local UncheckedChests, FirstRun = {}, true
-
 local function DistanceFromPlrSort(list)
     local hrp = getCharacter().HumanoidRootPart
     table.sort(list, function(a, b)
@@ -62,18 +63,39 @@ local function Teleport(cf)
     toggleNoclip(false)
 end
 
+-- ================= SERVER HOP =================
+local function ServerHop()
+    if not Farming then return end
+
+    local servers = HttpService:JSONDecode(
+        game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+    )
+
+    for _, s in pairs(servers.data) do
+        if s.playing < s.maxPlayers then
+            TeleportService:TeleportToPlaceInstance(PlaceId, s.id, LocalPlayer)
+            break
+        end
+    end
+end
+
 -- ================= FARM =================
 local function StartFarm()
     if Farming then return end
     Farming = true
 
-    FarmThread = task.spawn(function()
+    task.spawn(function()
         while Farming do
             task.wait(0.2)
 
             local Chests = getChestsSorted()
             if #Chests > 0 then
                 Teleport(Chests[1].CFrame)
+            else
+                warn("HẾT RƯƠNG → ĐỔI SERVER")
+                task.wait(1)
+                ServerHop()
+                return
             end
         end
     end)
@@ -90,7 +112,7 @@ gui.Name = "ChestFarmGUI"
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 200, 0, 120)
 frame.Position = UDim2.new(0, 20, 0.4, 0)
-frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.Active = true
 frame.Draggable = true
 
